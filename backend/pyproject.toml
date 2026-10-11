@@ -1,0 +1,87 @@
+[project]
+name = "dashboard-backend"
+version = "0.1.0"
+description = "Бэкенд дашборда руководителя предприятия (УНФ 3.0)"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.143.0",
+    "uvicorn[standard]==0.54.0",
+    "sqlalchemy[asyncio]==2.1.0",
+    "alembic==1.20.0",
+    "pydantic==2.14.0",
+    "pydantic-settings==2.15.0",
+    "pyjwt==2.15.0",
+    "pwdlib[argon2]==0.3.0",
+    "argon2-cffi==25.1.0",
+    "httpx==0.28.1",
+    "python-multipart==0.0.32",
+    "email-validator==2.3.0",
+    "aiosqlite==0.22.0",
+    "psycopg[binary]==3.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.0",
+    "pytest-asyncio==1.4.0",
+    "respx==0.22.0",
+    "ruff==0.17.0",
+    "ty==0.0.86",
+]
+
+[tool.uv]
+# Приложение, а не библиотека: пакет `app` лежит прямо в каталоге проекта,
+# устанавливать его в окружение не нужно.
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["error"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "ARG", "PTH", "RUF", "ASYNC", "S", "N", "TRY", "EM", "LOG", "G"]
+ignore = [
+    # Проект русскоязычный: в коде намеренно используются «1С», «PDF» и русские
+    # строки — искать в них латинские двойники бессмысленно.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # Имена полей JSON заданы контрактом (camelCase): revenueDeltaPct, isDefault.
+    "N815",
+    # EM/TRY требуют, чтобы текст ошибки формировался внутри класса исключения.
+    # Здесь наоборот: контекст (какой параметр, какое значение) известен только
+    # в точке вызова, а классы ошибок задают лишь код контракта.
+    "EM101",
+    "EM102",
+    "TRY003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "S101",   # assert в тестах — это и есть проверка
+    "ARG001",  # фикстуры-заглушки принимают аргументы ради зависимостей
+    "ARG002",
+    "S105",   # тестовые пароли и секреты не секреты
+    "S106",
+    "S608",   # SQL в тестах собирается только из имён таблиц схемы
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.rules]
+unresolved-attribute = "warn"

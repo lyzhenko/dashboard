@@ -1,0 +1,75 @@
+# Стенд целиком: PostgreSQL 17 + бэкенд + фронтенд.
+# Порт стенда — STAND_PORT (по умолчанию 8090): 8080 занят IIS.
+# Значения берутся из .env (шаблон — .env.example).
+
+name: ${COMPOSE_PROJECT_NAME:-dashboard}
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dashboard}
+      POSTGRES_USER: ${POSTGRES_USER:-dashboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env}
+      # Локаль под русские наименования в данных 1С.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - dashboard
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?задайте DATABASE_URL в .env}
+      JWT_SECRET: ${JWT_SECRET:?задайте JWT_SECRET в .env (не короче 32 байт)}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-1209600}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ONE_C_BASE_URL: ${ONE_C_BASE_URL:-http://host.docker.internal:8090/unf/hs/dashboard}
+      ONE_C_USER: ${ONE_C_USER:-}
+      ONE_C_PASSWORD: ${ONE_C_PASSWORD:-}
+      ONE_C_TIMEOUT_SECONDS: ${ONE_C_TIMEOUT_SECONDS:-20}
+      KPI_CACHE_TTL_SECONDS: ${KPI_CACHE_TTL_SECONDS:-300}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SEED_DEMO_USER: ${SEED_DEMO_USER:-false}
+    # Публикация 1С живёт на хосте (IIS, порт 8090), поэтому бэкенду нужен доступ
+    # к хост-машине: в Linux-контейнере — extra_hosts, в Docker Desktop — из коробки.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8000"
+    networks:
+      - dashboard
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${STAND_PORT:-8090}:80"
+    networks:
+      - dashboard
+
+volumes:
+  db-data:
+
+networks:
+  dashboard:
+    driver: bridge

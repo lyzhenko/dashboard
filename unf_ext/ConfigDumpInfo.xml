@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" format="Hierarchical" version="2.20">
+	<ConfigVersions>
+		<Metadata name="Configuration.Dashboard" id="e0566548-467e-46bc-a7f9-b6dcd3dac840" configVersion="6a6c7baf443fe510011c927e851f90156677ec15"/>
+		<Metadata name="Language.Русский" id="9fc1810d-4fc9-451a-b39e-c4106baf90d2" configVersion="21c4f14d7d1d83c62fe4f4194444fcdbfe71b658"/>
+		<Metadata name="Role.D_ОсновнаяРоль" id="3546354e-3469-4d67-a3c5-4aaaefef8eb0" configVersion="758d0fb56e9f7ad459da0b536a030d0880d44ceb"/>
+	</ConfigVersions>
+</ConfigDumpInfo>

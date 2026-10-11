@@ -1,0 +1,18 @@
+# Настройки установки pnpm 12 живут здесь, а не в package.json (pnpm 12 не читает package.json#pnpm).
+# allowBuilds заменяет собой onlyBuiltDependencies: пакет с build-скриптом нужно явно разрешить.
+packages:
+  - '.'
+
+allowBuilds:
+  # core-js в postinstall только печатает сообщение о поддержке проекта — сборка не нужна
+  core-js: false
+  esbuild: true
+  msw: true
+  vue-demi: true
+
+minimumReleaseAgeExclude:
+  - '@vitejs/plugin-vue@6.0.10'
+  - '@vue/language-core@3.3.13'
+  - msw@3.0.3
+  - prettier@3.9.10
+  - vue-tsc@3.3.13

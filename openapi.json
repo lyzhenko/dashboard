@@ -1,0 +1,1722 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Дашборд руководителя предприятия",
+    "description": "\nБэкенд дашборда руководителя предприятия (УНФ 3.0).\n\n* Источник данных — HTTP-сервис расширения 1С (`D_DashboardApi`, только чтение).\n* Все показатели кэшируются в базе (`kpi_snapshots`) на `KPI_CACHE_TTL_SECONDS`.\n* Ошибки 1С превращаются в `503 kpi_unavailable`, кроме случая, когда есть\n  устаревший снимок: тогда данные отдаются с `stale: true`.\n* Все `/dashboard/*` требуют заголовок `Authorization: Bearer <accessToken>`.\n",
+    "contact": {
+      "name": "Дашборд руководителя",
+      "url": "https://example.local/dashboard"
+    },
+    "license": {
+      "name": "Proprietary"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Служебное"
+        ],
+        "summary": "Проверка живости",
+        "description": "Отвечает `ok`, если работает сам сервис. Поле `database` — доступность базы, поле `oneC` — доступность HTTP-сервиса расширения 1С (`ok` / `unavailable`). Недоступность 1С не делает ответ ошибочным: дашборд может работать на кэше.",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "База данных недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Вход в дашборд",
+        "description": "Проверяет логин и пароль. Access-токен возвращается в теле ответа (фронтенд хранит его в памяти), refresh-токен — в httpOnly cookie.",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Неверный логин или пароль, либо истёкший токен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Обновить access-токен",
+        "description": "Читает refresh-токен из httpOnly cookie и выдаёт новый access-токен. Тело запроса не требуется.",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "parameters": [
+          {
+            "name": "dashboard_refresh",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dashboard Refresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Неверный логин или пароль, либо истёкший токен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Выход из дашборда",
+        "description": "Удаляет cookie с refresh-токеном. Access-токен фронтенд забывает сам.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Текущий пользователь",
+        "description": "Отдаёт сведения о пользователе по access-токену.",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Токен отсутствует или недействителен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dashboard/summary": {
+      "get": {
+        "tags": [
+          "Дашборд"
+        ],
+        "summary": "Сводка для главного экрана",
+        "description": "Все блоки показателей плюс `meta` со свежестью данных. Данные берутся из кэша, если снимок не старше `KPI_CACHE_TTL_SECONDS`; при недоступности 1С отдаётся устаревший снимок с `stale: true`.",
+        "operationId": "summary_api_v1_dashboard_summary_get",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня.",
+              "examples": [
+                "2026-10-11"
+              ],
+              "title": "Date"
+            },
+            "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PeriodKind",
+              "description": "Период оборота продаж",
+              "default": "month"
+            },
+            "description": "Период оборота продаж"
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UUID организации из 1С. Без параметра — сводка по всем организациям.",
+              "examples": [
+                "0a1b2c3d-1111-2222-3333-444455556666"
+              ],
+              "title": "Organization"
+            },
+            "description": "UUID организации из 1С. Без параметра — сводка по всем организациям."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет доступа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Некорректные параметры",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "1С недоступна и закэшированных данных нет",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/dynamics": {
+      "get": {
+        "tags": [
+          "Дашборд"
+        ],
+        "summary": "Динамика выручки и прибыли по месяцам",
+        "description": "Последние `months` месяцев (1–36), по возрастанию; последний — текущий, неполный.",
+        "operationId": "dynamics_api_v1_dashboard_dynamics_get",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 36,
+              "minimum": 1,
+              "description": "Сколько месяцев вернуть",
+              "default": 12,
+              "title": "Months"
+            },
+            "description": "Сколько месяцев вернуть"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня.",
+              "examples": [
+                "2026-10-11"
+              ],
+              "title": "Date"
+            },
+            "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня."
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UUID организации из 1С. Без параметра — сводка по всем организациям.",
+              "examples": [
+                "0a1b2c3d-1111-2222-3333-444455556666"
+              ],
+              "title": "Organization"
+            },
+            "description": "UUID организации из 1С. Без параметра — сводка по всем организациям."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DynamicsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет доступа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Некорректные параметры",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "1С недоступна и закэшированных данных нет",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/debtors": {
+      "get": {
+        "tags": [
+          "Дашборд"
+        ],
+        "summary": "Детализация задолженности по контрагентам",
+        "description": "`receivable` — нам должны, `payable` — мы должны. Сортировка по сумме убыв.",
+        "operationId": "debtors_api_v1_dashboard_debtors_get",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/DebtorKind",
+              "description": "Вид задолженности",
+              "default": "receivable"
+            },
+            "description": "Вид задолженности"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Сколько контрагентов вернуть",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Сколько контрагентов вернуть"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня.",
+              "examples": [
+                "2026-10-11"
+              ],
+              "title": "Date"
+            },
+            "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня."
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UUID организации из 1С. Без параметра — сводка по всем организациям.",
+              "examples": [
+                "0a1b2c3d-1111-2222-3333-444455556666"
+              ],
+              "title": "Organization"
+            },
+            "description": "UUID организации из 1С. Без параметра — сводка по всем организациям."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DebtorsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет доступа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Некорректные параметры",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "1С недоступна и закэшированных данных нет",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/organizations": {
+      "get": {
+        "tags": [
+          "Дашборд"
+        ],
+        "summary": "Список организаций",
+        "description": "Организации из 1С для выбора на дашборде. Справочник кэшируется в базе; при недоступности 1С отдаётся последний известный.",
+        "operationId": "organizations_api_v1_dashboard_organizations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет доступа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Некорректные параметры",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "1С недоступна и закэшированных данных нет",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dashboard/refresh": {
+      "post": {
+        "tags": [
+          "Дашборд"
+        ],
+        "summary": "Принудительно обновить сводку",
+        "description": "Игнорирует кэш и перечитывает данные из 1С. Если 1С недоступна, но есть снимок — отдаётся он, с `stale: true`.",
+        "operationId": "refresh_api_v1_dashboard_refresh_post",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня.",
+              "examples": [
+                "2026-10-11"
+              ],
+              "title": "Date"
+            },
+            "description": "Дата, на которую считаются остатки (YYYY-MM-DD). По умолчанию — сегодня."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PeriodKind",
+              "description": "Период оборота продаж",
+              "default": "month"
+            },
+            "description": "Период оборота продаж"
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UUID организации из 1С. Без параметра — сводка по всем организациям.",
+              "examples": [
+                "0a1b2c3d-1111-2222-3333-444455556666"
+              ],
+              "title": "Organization"
+            },
+            "description": "UUID организации из 1С. Без параметра — сводка по всем организациям."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет доступа",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Некорректные параметры",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "1С недоступна и закэшированных данных нет",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Bucket": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Подпись интервала",
+            "default": "",
+            "examples": [
+              "8–14 дней"
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount",
+            "description": "Сумма в рублях с копейками",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "Bucket",
+        "description": "Корзина возраста долга (контракт, 1.3).\n\nИнтервалы как в типовой УНФ: 0–7, 8–14, 15–30, 31–60, свыше 60 дней.\nЧисловых границ в ответе нет — интервал однозначно задан подписью."
+      },
+      "Counterparty": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Наименование контрагента",
+            "default": ""
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount",
+            "description": "Сумма задолженности, рубли",
+            "default": 0.0
+          },
+          "overdue": {
+            "type": "number",
+            "title": "Overdue",
+            "description": "Просроченная часть, рубли",
+            "default": 0.0
+          },
+          "maxOverdueDays": {
+            "type": "integer",
+            "title": "Maxoverduedays",
+            "description": "Максимальное число дней просрочки",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "Counterparty",
+        "description": "Контрагент в списках топ-должников и топ-поставщиков."
+      },
+      "DebtorItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Наименование контрагента",
+            "default": ""
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount",
+            "description": "Сумма задолженности, рубли",
+            "default": 0.0
+          },
+          "overdue": {
+            "type": "number",
+            "title": "Overdue",
+            "description": "Просроченная часть, рубли",
+            "default": 0.0
+          },
+          "maxOverdueDays": {
+            "type": "integer",
+            "title": "Maxoverduedays",
+            "description": "Максимальная просрочка, дней",
+            "default": 0
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "Разбивка по срокам"
+          }
+        },
+        "type": "object",
+        "title": "DebtorItem",
+        "description": "Контрагент в детализации задолженности (контракт, 1.5)."
+      },
+      "DebtorKind": {
+        "type": "string",
+        "enum": [
+          "receivable",
+          "payable"
+        ],
+        "title": "DebtorKind",
+        "description": "Вид задолженности (контракт, 1.5)."
+      },
+      "DebtorsResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "Вид задолженности",
+            "default": "receivable"
+          },
+          "asOf": {
+            "type": "string",
+            "title": "Asof",
+            "description": "Дата остатков",
+            "default": ""
+          },
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "Всего, рубли",
+            "default": 0.0
+          },
+          "overdue": {
+            "type": "number",
+            "title": "Overdue",
+            "description": "Просрочено, рубли",
+            "default": 0.0
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DebtorItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Контрагенты по убыванию суммы"
+          }
+        },
+        "type": "object",
+        "title": "DebtorsResponse",
+        "description": "``GET /dashboard/debtors`` — детализация по контрагентам."
+      },
+      "DynamicsItem": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "Месяц в формате YYYY-MM",
+            "default": "",
+            "examples": [
+              "2025-11"
+            ]
+          },
+          "revenue": {
+            "type": "number",
+            "title": "Revenue",
+            "description": "Выручка месяца, рубли",
+            "default": 0.0
+          },
+          "grossProfit": {
+            "type": "number",
+            "title": "Grossprofit",
+            "description": "Валовая прибыль месяца",
+            "default": 0.0
+          },
+          "marginPct": {
+            "type": "number",
+            "title": "Marginpct",
+            "description": "Рентабельность, %",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "DynamicsItem",
+        "description": "Один месяц динамики (контракт, 1.4)."
+      },
+      "DynamicsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DynamicsItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Месяцы по возрастанию"
+          }
+        },
+        "type": "object",
+        "title": "DynamicsResponse",
+        "description": "``GET /dashboard/dynamics`` — выручка и прибыль по месяцам."
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Машиночитаемый код ошибки",
+            "examples": [
+              "kpi_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Текст ошибки для пользователя",
+            "examples": [
+              "Данные 1С недоступны: превышено время ожидания"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "description": "Тело ошибки API бэкенда."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "description": "Ответ с ошибкой: ``{\"detail\": {...}}``."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Состояние сервиса",
+            "default": "ok",
+            "examples": [
+              "ok"
+            ]
+          },
+          "database": {
+            "type": "string",
+            "title": "Database",
+            "description": "Состояние базы данных",
+            "default": "ok",
+            "examples": [
+              "ok"
+            ]
+          },
+          "oneC": {
+            "type": "string",
+            "title": "Onec",
+            "description": "Доступность HTTP-сервиса 1С",
+            "default": "unavailable",
+            "examples": [
+              "ok",
+              "unavailable"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "HealthResponse",
+        "description": "``GET /health`` — служебная проверка (контракт, 2.3)."
+      },
+      "KpiMeta": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Откуда взяты данные: `1c` — свежий ответ 1С, `cache` — снимок из кэша",
+            "default": "1c",
+            "examples": [
+              "1c",
+              "cache"
+            ]
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fetchedat",
+            "description": "Момент получения данных от 1С"
+          },
+          "ageSeconds": {
+            "type": "integer",
+            "title": "Ageseconds",
+            "description": "Возраст данных в секундах"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "description": "Данные старше `KPI_CACHE_TTL_SECONDS` — нужна кнопка обновления"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached",
+            "description": "Ответ отдан из кэша, а не из свежего запроса"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fetchedAt",
+          "ageSeconds",
+          "stale",
+          "cached"
+        ],
+        "title": "KpiMeta",
+        "description": "Блок ``meta`` — свежесть данных (контракт, 2.2).",
+        "example": {
+          "ageSeconds": 42,
+          "cached": true,
+          "fetchedAt": "2026-10-11T07:40:03",
+          "source": "1c",
+          "stale": false
+        }
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Username",
+            "description": "Логин дашборда"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Password",
+            "description": "Пароль"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "description": "Тело ``POST /auth/login``.",
+        "example": {
+          "password": "dashboard",
+          "username": "rukovoditel"
+        }
+      },
+      "LoginResponse": {
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "title": "Accesstoken",
+            "description": "JWT access-токен (HS256)"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "title": "Expiresin",
+            "description": "Время жизни access-токена, секунды"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfo",
+            "description": "Пользователь, вошедший в систему"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "user"
+        ],
+        "title": "LoginResponse",
+        "description": "Ответ ``POST /auth/login``."
+      },
+      "LogoutResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Текст результата"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "LogoutResponse",
+        "description": "Ответ ``POST /auth/logout``."
+      },
+      "MessageResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Текст результата"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "MessageResponse",
+        "description": "Простой ответ с текстом (например, выход из системы)."
+      },
+      "MoneyBlock": {
+        "properties": {
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "Всего денег, рубли",
+            "default": 0.0
+          },
+          "accounts": {
+            "type": "number",
+            "title": "Accounts",
+            "description": "На расчётных счетах, рубли",
+            "default": 0.0
+          },
+          "cash": {
+            "type": "number",
+            "title": "Cash",
+            "description": "В кассе, рубли",
+            "default": 0.0
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "Валюта показателя",
+            "default": "RUB"
+          }
+        },
+        "type": "object",
+        "title": "MoneyBlock",
+        "description": "Денежные средства (контракт, 1.3)."
+      },
+      "OrdersBlock": {
+        "properties": {
+          "portfolio": {
+            "type": "number",
+            "title": "Portfolio",
+            "description": "Сумма открытых заказов, рубли",
+            "default": 0.0
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Количество открытых заказов",
+            "default": 0
+          },
+          "positions": {
+            "type": "number",
+            "title": "Positions",
+            "description": "Количество единиц к отгрузке",
+            "default": 0.0
+          },
+          "overdueCount": {
+            "type": "integer",
+            "title": "Overduecount",
+            "description": "Заказы с просроченной датой отгрузки",
+            "default": 0
+          },
+          "overdueAmount": {
+            "type": "number",
+            "title": "Overdueamount",
+            "description": "Сумма просроченных заказов",
+            "default": 0.0
+          },
+          "dueThisWeek": {
+            "type": "number",
+            "title": "Duethisweek",
+            "description": "К отгрузке в ближайшие 7 дней",
+            "default": 0.0
+          },
+          "orderedAmount": {
+            "type": "number",
+            "title": "Orderedamount",
+            "description": "Заказы, оформленные за период",
+            "default": 0.0
+          },
+          "paidAmount": {
+            "type": "number",
+            "title": "Paidamount",
+            "description": "Оплаты по заказам за период",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "OrdersBlock",
+        "description": "Портфель заказов покупателей (контракт, 1.3)."
+      },
+      "OrganizationItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "UUID организации из 1С"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Наименование",
+            "default": ""
+          },
+          "inn": {
+            "type": "string",
+            "title": "Inn",
+            "description": "ИНН",
+            "default": ""
+          },
+          "isDefault": {
+            "type": "boolean",
+            "title": "Isdefault",
+            "description": "Основная организация",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "OrganizationItem",
+        "description": "Организация в списке для выбора (контракт, 1.2)."
+      },
+      "OrganizationRef": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "UUID организации из 1С"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Наименование организации",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "OrganizationRef",
+        "description": "Организация, по которой посчитана сводка."
+      },
+      "OrganizationsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Организации базы 1С"
+          }
+        },
+        "type": "object",
+        "title": "OrganizationsResponse",
+        "description": "``GET /dashboard/organizations`` — список организаций."
+      },
+      "PayablesBlock": {
+        "properties": {
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "Всего к оплате, рубли",
+            "default": 0.0
+          },
+          "overdue": {
+            "type": "number",
+            "title": "Overdue",
+            "description": "Просроченная часть, рубли",
+            "default": 0.0
+          },
+          "overduePct": {
+            "type": "number",
+            "title": "Overduepct",
+            "description": "Доля просрочки, % (0 при нулевом итоге)",
+            "default": 0.0
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "Возраст долга по корзинам"
+          }
+        },
+        "type": "object",
+        "title": "PayablesBlock",
+        "description": "Кредиторская задолженность (контракт, 1.3)."
+      },
+      "PeriodBlock": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/PeriodKind",
+            "description": "Вид периода",
+            "default": "month"
+          },
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "Начало периода, YYYY-MM-DD",
+            "default": ""
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "Конец периода, YYYY-MM-DD",
+            "default": ""
+          },
+          "prevFrom": {
+            "type": "string",
+            "title": "Prevfrom",
+            "description": "Начало предыдущего периода",
+            "default": ""
+          },
+          "prevTo": {
+            "type": "string",
+            "title": "Prevto",
+            "description": "Конец предыдущего периода",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "PeriodBlock",
+        "description": "Период, за который посчитаны обороты (контракт, 1.3)."
+      },
+      "PeriodKind": {
+        "type": "string",
+        "enum": [
+          "day",
+          "week",
+          "month",
+          "quarter",
+          "year"
+        ],
+        "title": "PeriodKind",
+        "description": "Период оборота продаж (контракт, 1.3)."
+      },
+      "ReceivablesBlock": {
+        "properties": {
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "Всего к получению, рубли",
+            "default": 0.0
+          },
+          "overdue": {
+            "type": "number",
+            "title": "Overdue",
+            "description": "Просроченная часть, рубли",
+            "default": 0.0
+          },
+          "overduePct": {
+            "type": "number",
+            "title": "Overduepct",
+            "description": "Доля просрочки, % (0 при нулевом итоге)",
+            "default": 0.0
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "Возраст долга по корзинам"
+          }
+        },
+        "type": "object",
+        "title": "ReceivablesBlock",
+        "description": "Дебиторская задолженность (контракт, 1.3)."
+      },
+      "RefreshResponse": {
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "title": "Accesstoken",
+            "description": "JWT access-токен (HS256)"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "title": "Expiresin",
+            "description": "Время жизни access-токена, секунды"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accessToken",
+          "expiresIn"
+        ],
+        "title": "RefreshResponse",
+        "description": "Ответ ``POST /auth/refresh``."
+      },
+      "SalesBlock": {
+        "properties": {
+          "revenue": {
+            "type": "number",
+            "title": "Revenue",
+            "description": "Выручка с НДС, как считает УНФ, рубли",
+            "default": 0.0
+          },
+          "revenuePrev": {
+            "type": "number",
+            "title": "Revenueprev",
+            "description": "Выручка предыдущего периода",
+            "default": 0.0
+          },
+          "revenueDeltaPct": {
+            "type": "number",
+            "title": "Revenuedeltapct",
+            "description": "Прирост выручки, % (0 при нулевой прошлой выручке)",
+            "default": 0.0
+          },
+          "revenueNet": {
+            "type": "number",
+            "title": "Revenuenet",
+            "description": "Выручка без НДС, рубли",
+            "default": 0.0
+          },
+          "grossProfit": {
+            "type": "number",
+            "title": "Grossprofit",
+            "description": "Валовая прибыль за период",
+            "default": 0.0
+          },
+          "grossProfitPrev": {
+            "type": "number",
+            "title": "Grossprofitprev",
+            "description": "Валовая прибыль периода ранее",
+            "default": 0.0
+          },
+          "marginPct": {
+            "type": "number",
+            "title": "Marginpct",
+            "description": "Рентабельность, % (0 при нулевой выручке)",
+            "default": 0.0
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents",
+            "description": "Количество документов продажи за период",
+            "default": 0
+          },
+          "avgTicket": {
+            "type": "number",
+            "title": "Avgticket",
+            "description": "Средний чек, рубли",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "SalesBlock",
+        "description": "Продажи за период и сравнение с предыдущим (контракт, 1.3)."
+      },
+      "StockBlock": {
+        "properties": {
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "Стоимость запасов, рубли",
+            "default": 0.0
+          },
+          "skuCount": {
+            "type": "integer",
+            "title": "Skucount",
+            "description": "Номенклатура с ненулевым остатком",
+            "default": 0
+          },
+          "negativeCount": {
+            "type": "integer",
+            "title": "Negativecount",
+            "description": "Номенклатура с отрицательным остатком",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "StockBlock",
+        "description": "Запасы на складах (контракт, 1.3)."
+      },
+      "SummaryResponse": {
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/KpiMeta",
+            "description": "Свежесть данных"
+          },
+          "generatedAt": {
+            "type": "string",
+            "title": "Generatedat",
+            "description": "Момент расчёта на стороне 1С",
+            "default": ""
+          },
+          "asOf": {
+            "type": "string",
+            "title": "Asof",
+            "description": "Дата, на которую считались остатки",
+            "default": ""
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodBlock",
+            "description": "Период оборотов"
+          },
+          "organization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrganizationRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Организация (null — сводка по всем)"
+          },
+          "money": {
+            "$ref": "#/components/schemas/MoneyBlock"
+          },
+          "sales": {
+            "$ref": "#/components/schemas/SalesBlock"
+          },
+          "receivables": {
+            "$ref": "#/components/schemas/ReceivablesBlock"
+          },
+          "payables": {
+            "$ref": "#/components/schemas/PayablesBlock"
+          },
+          "stock": {
+            "$ref": "#/components/schemas/StockBlock"
+          },
+          "orders": {
+            "$ref": "#/components/schemas/OrdersBlock"
+          },
+          "topDebtors": {
+            "items": {
+              "$ref": "#/components/schemas/Counterparty"
+            },
+            "type": "array",
+            "title": "Topdebtors",
+            "description": "Топ-5 дебиторов по сумме"
+          },
+          "topSuppliers": {
+            "items": {
+              "$ref": "#/components/schemas/Counterparty"
+            },
+            "type": "array",
+            "title": "Topsuppliers",
+            "description": "Топ-5 поставщиков по сумме"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meta"
+        ],
+        "title": "SummaryResponse",
+        "description": "``GET /dashboard/summary`` — сводка плюс блок свежести данных."
+      },
+      "UserInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Идентификатор пользователя"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username",
+            "description": "Логин"
+          },
+          "fullName": {
+            "type": "string",
+            "title": "Fullname",
+            "description": "ФИО для отображения"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles",
+            "description": "Роли пользователя"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "fullName"
+        ],
+        "title": "UserInfo",
+        "description": "Сведения о пользователе (``GET /auth/me``).",
+        "example": {
+          "fullName": "Иванов И. И.",
+          "id": 1,
+          "roles": [
+            "viewer"
+          ],
+          "username": "rukovoditel"
+        }
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "JWT access-токен",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Служебное",
+      "description": "Проверка живости сервиса, базы данных и доступности 1С."
+    },
+    {
+      "name": "Авторизация",
+      "description": "Вход в дашборд. Access-токен (JWT, HS256) живёт в памяти фронтенда, refresh-токен — в httpOnly cookie."
+    },
+    {
+      "name": "Дашборд",
+      "description": "Показатели руководителя. Данные читаются из HTTP-сервиса расширения 1С и кэшируются в базе; при недоступности 1С отдаётся устаревший снимок."
+    }
+  ]
+}

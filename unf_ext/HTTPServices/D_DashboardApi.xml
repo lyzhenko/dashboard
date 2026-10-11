@@ -1,0 +1,165 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:app="http://v8.1c.ru/8.2/managed-application/core" xmlns:cfg="http://v8.1c.ru/8.1/data/enterprise/current-config" xmlns:cmi="http://v8.1c.ru/8.2/managed-application/cmi" xmlns:ent="http://v8.1c.ru/8.1/data/enterprise" xmlns:lf="http://v8.1c.ru/8.2/managed-application/logform" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xpr="http://v8.1c.ru/8.3/xcf/predef" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.20">
+	<HTTPService uuid="eaac1547-39f1-4666-87b8-5e129f90da98">
+		<Properties>
+			<Name>D_DashboardApi</Name>
+			<Synonym>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Dashboard: API показателей</v8:content>
+				</v8:item>
+			</Synonym>
+			<Comment>Показатели предприятия для дашборда руководителя. Только чтение</Comment>
+			<RootURL>dashboard</RootURL>
+			<ReuseSessions>AutoUse</ReuseSessions>
+			<SessionMaxAge>20</SessionMaxAge>
+		</Properties>
+		<ChildObjects>
+			<URLTemplate uuid="82d549b3-0416-4586-a055-109cebe3f57a">
+				<Properties>
+					<Name>health</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Проверка доступности</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/health</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="f5774405-c8f2-442a-b5bb-6b11a8eb394d">
+						<Properties>
+							<Name>GET</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>healthGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="cf37f2bd-7e4e-4246-8069-597606af589b">
+				<Properties>
+					<Name>organizations</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Список организаций</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/organizations</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="e5704cc5-b73a-4cc6-b439-7666f2023c4a">
+						<Properties>
+							<Name>GET</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>organizationsGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="8787d008-3898-4708-af4f-1726e520e85b">
+				<Properties>
+					<Name>kpi</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Сводка показателей</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/kpi</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="fc130657-9b13-42d5-804a-30af1fea74af">
+						<Properties>
+							<Name>GET</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>kpiGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="90b8e138-5ef7-42e7-b408-d8125210f640">
+				<Properties>
+					<Name>dynamics</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Динамика по месяцам</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/dynamics</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="09197c98-0d62-45bd-a136-3497362baf05">
+						<Properties>
+							<Name>GET</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>dynamicsGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="955e80ca-317c-4496-978f-5f7c14085c79">
+				<Properties>
+					<Name>debtors</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Задолженность по контрагентам</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/debtors</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="29d41656-cb18-4dba-9f57-3d6326fe073b">
+						<Properties>
+							<Name>GET</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>debtorsGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+		</ChildObjects>
+	</HTTPService>
+</MetaDataObject>

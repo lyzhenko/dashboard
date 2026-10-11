@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "onecConfiguration": {
+      "type": "stdio",
+      "command": "C:\\Users\\alexa\\PycharmProjects\\mcp_1c\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "mcp_server_1c", "--platform"],
+      "cwd": "C:\\Users\\alexa\\PycharmProjects\\mcp_1c",
+      "env": {
+        "ONEC_SOURCES": "dashboard=D:\\Developer\\dashboard\\unf_ext;unf=D:\\unf_conf",
+        "ONEC_SEARCH_TIMEOUT": "60",
+        "ONEC_MAX_MODULE_BYTES": "400000",
+        "ONEC_LOG_LEVEL": "WARNING"
+      },
+      "dev": {
+        "watch": "C:\\Users\\alexa\\PycharmProjects\\mcp_1c\\src\\mcp_server_1c\\**\\*.py"
+      }
+    }
+  }
+}
